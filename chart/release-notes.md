@@ -1,5 +1,9 @@
 # Release Notes
 
+## v0.3.54
+- upgrade source-controller to v1.8.1 and helm-controller to v1.5.3 with accompanying CRD updates
+- add integration test cases for CEL health check expressions on HelmReleases 
+
 ## v0.3.53 (2026-02-23)
 
 ### Summary

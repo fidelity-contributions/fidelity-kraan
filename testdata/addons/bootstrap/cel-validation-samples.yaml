@@ -1,0 +1,208 @@
+---
+# Sample 1: Basic healthCheckExprs with required fields
+# Demonstrates minimal CEL health check configuration with required fields
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: health-check-basic
+  namespace: bootstrap
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: podinfo
+      sourceRef:
+        kind: HelmRepository
+        name: podinfo
+        namespace: gotk-system
+      version: '>=1.0.0'
+  healthCheckExprs:
+    - apiVersion: apps/v1
+      kind: Deployment
+      current: 'self.status.readyReplicas == self.status.replicas'
+  values:
+    replicaCount: 1
+
+---
+# Sample 2: Health check with failed state expression
+# Demonstrates CEL expressions for both current and failed states
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: health-check-with-failed
+  namespace: bootstrap
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: podinfo
+      sourceRef:
+        kind: HelmRepository
+        name: podinfo
+        namespace: gotk-system
+      version: '>=1.0.0'
+  healthCheckExprs:
+    - apiVersion: apps/v1
+      kind: Deployment
+      current: 'self.status.readyReplicas == self.status.replicas && self.status.replicas > 0'
+      failed: 'self.status.conditions.exists(c, c.type == "Progressing" && c.status == "False" && c.reason == "ProgressDeadlineExceeded")'
+  values:
+    replicaCount: 2
+
+---
+# Sample 3: Health check with inProgress expression
+# Demonstrates all three CEL expression types: current, failed, and inProgress
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: health-check-with-inprogress
+  namespace: bootstrap
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: podinfo
+      sourceRef:
+        kind: HelmRepository
+        name: podinfo
+        namespace: gotk-system
+      version: '>=1.0.0'
+  healthCheckExprs:
+    - apiVersion: apps/v1
+      kind: Deployment
+      current: 'self.status.readyReplicas == self.status.replicas && self.status.replicas > 0'
+      inProgress: 'self.status.readyReplicas < self.status.replicas'
+      failed: 'self.status.conditions.exists(c, c.type == "Progressing" && c.status == "False")'
+  values:
+    replicaCount: 1
+
+---
+# Sample 4: Multiple health check expressions for different resources
+# Demonstrates checking health of multiple resource types (Deployment and StatefulSet)
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: health-check-multiple-resources
+  namespace: bootstrap
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: podinfo
+      sourceRef:
+        kind: HelmRepository
+        name: podinfo
+        namespace: gotk-system
+      version: '>=1.0.0'
+  healthCheckExprs:
+    - apiVersion: apps/v1
+      kind: Deployment
+      current: 'self.status.readyReplicas == self.status.replicas'
+      failed: 'self.status.conditions.exists(c, c.type == "Available" && c.status == "False")'
+    - apiVersion: apps/v1
+      kind: StatefulSet
+      current: 'self.status.readyReplicas == self.status.replicas && self.status.currentRevision == self.status.updateRevision'
+      failed: 'self.status.conditions.exists(c, c.type == "StatefulSetReplicasReady" && c.status == "False")'
+  values:
+    replicaCount: 3
+
+---
+# Sample 5: Complex CEL expressions with conditions
+# Demonstrates more complex CEL logic for custom resource health evaluation
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: health-check-complex
+  namespace: bootstrap
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: podinfo
+      sourceRef:
+        kind: HelmRepository
+        name: podinfo
+        namespace: gotk-system
+      version: '>=1.0.0'
+  healthCheckExprs:
+    - apiVersion: apps/v1
+      kind: Deployment
+      current: |
+        has(self.status.readyReplicas) &&
+        has(self.status.replicas) &&
+        self.status.readyReplicas == self.status.replicas &&
+        self.status.replicas > 0 &&
+        self.status.conditions.exists(c, c.type == "Available" && c.status == "True")
+      inProgress: |
+        !has(self.status.readyReplicas) ||
+        self.status.readyReplicas < self.status.replicas
+      failed: |
+        self.status.conditions.exists(c,
+          (c.type == "Progressing" && c.status == "False" && c.reason == "ProgressDeadlineExceeded") ||
+          (c.type == "Available" && c.status == "False")
+        )
+  values:
+    replicaCount: 2
+
+---
+# Sample 6: Health check for custom CRDs
+# Demonstrates CEL expressions for custom resource definitions
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: health-check-custom-crd
+  namespace: bootstrap
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: podinfo
+      sourceRef:
+        kind: HelmRepository
+        name: podinfo
+        namespace: gotk-system
+      version: '>=1.0.0'
+  healthCheckExprs:
+    - apiVersion: example.com/v1
+      kind: MyCustomResource
+      current: 'has(self.status.phase) && self.status.phase == "Ready"'
+      inProgress: 'has(self.status.phase) && self.status.phase == "Progressing"'
+      failed: 'has(self.status.phase) && self.status.phase == "Failed"'
+  values:
+    replicaCount: 1
+
+---
+# Sample 7: Combined with poller wait strategy
+# Health checks only work with 'poller' wait strategy and when wait is enabled
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: health-check-with-poller
+  namespace: bootstrap
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: podinfo
+      sourceRef:
+        kind: HelmRepository
+        name: podinfo
+        namespace: gotk-system
+      version: '>=2.0.0'
+  install:
+    disableWait: false  # Must be false for health checks to work
+  upgrade:
+    disableWait: false  # Must be false for health checks to work
+  waitStrategy:
+    name: poller  # Health checks require 'poller' strategy
+  healthCheckExprs:
+    - apiVersion: apps/v1
+      kind: Deployment
+      current: 'self.status.availableReplicas == self.spec.replicas'
+      inProgress: 'self.status.updatedReplicas < self.spec.replicas'
+      failed: 'self.status.conditions.exists(c, c.type == "Progressing" && c.status == "False" && c.reason == "ProgressDeadlineExceeded")'
+  values:
+    replicaCount: 3
+    service:
+      enabled: true
+      type: ClusterIP
